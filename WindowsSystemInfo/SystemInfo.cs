@@ -1,109 +1,135 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Management;
+using WindowsSystemInfo.Models;
 using Microsoft.Win32;
 
 namespace WindowsSystemInfo
 {
     public class SystemInfo
     {
-        public void GetOperatingSystemInfo()
+        public OS GetOperatingSystemInfo()
         {
-            Console.WriteLine("Operating System Info");
-            //Create an object of ManagementObjectSearcher class and pass query as parameter.
+            OS os = new OS();
             ManagementObjectSearcher managementObjectSearcher = new ManagementObjectSearcher("select * from Win32_OperatingSystem");
             foreach (ManagementObject managementObject in managementObjectSearcher.Get())
             {
                 if (managementObject["Caption"] != null)
                 {
-                    Console.WriteLine("  Operating System Name: " + managementObject["Caption"].ToString());   //Display operating system caption
+                    os.Name = "  Operating System Name: " + managementObject["Caption"];
                 }
+                else
+                {
+                    os.Name = "  No OS name available";
+                }
+
                 if (managementObject["OSArchitecture"] != null)
                 {
-                    Console.WriteLine("  Operating System Architecture: " + managementObject["OSArchitecture"].ToString());   //Display operating system architecture.
+                    os.Architecture = "  Operating System Architecture: " + managementObject["OSArchitecture"];
+                }
+                else
+                {
+                    os.Architecture = "  No Architecture name available";
                 }
                 if (managementObject["CSDVersion"] != null)
                 {
-                    Console.WriteLine("  Operating System Service Pack: " + managementObject["CSDVersion"].ToString());     //Display operating system version.
+                    os.Version = "  Operating System Service Pack: " + managementObject["CSDVersion"];
+                }
+                else
+                {
+                    os.Version = " No OS version available";
                 }
             }
+            return os;
         }
 
-        public void GetProcessorInfo()
+        public string GetProcessorInfo()
         {
-            Console.WriteLine("\nProcessor Info");
             RegistryKey processor_name = Registry.LocalMachine.OpenSubKey(@"Hardware\Description\System\CentralProcessor\0", RegistryKeyPermissionCheck.ReadSubTree);   //This registry entry contains entry for processor info.
 
             if (processor_name != null)
             {
                 if (processor_name.GetValue("ProcessorNameString") != null)
                 {
-                    Console.WriteLine("  " + processor_name.GetValue("ProcessorNameString"));
+                    return ("  " + processor_name.GetValue("ProcessorNameString"));
                 }
             }
+
+            return "  Processor name not available";
         }
 
-        public void GetLocalMachineName()
+        public string GetLocalMachineName()
         {
-            Console.WriteLine("\nLocal Machine Name");
-            Console.WriteLine("  " + Environment.MachineName);
+            return ("  " + Environment.MachineName);
         }
 
-        public void GetCurrentUserInfo()
+        public CurrentUser GetCurrentUserInfo()
         {
-            Console.WriteLine("\nCurrent User Info");
-
             string userName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
-            Console.WriteLine("  Username: " + userName);
-
             string authenticationType = System.Security.Principal.WindowsIdentity.GetCurrent().AuthenticationType;
-            Console.WriteLine("  Authentication type: " + authenticationType);
+            bool isGuestUser = System.Security.Principal.WindowsIdentity.GetCurrent().IsGuest;
 
-            var isGuestUser = System.Security.Principal.WindowsIdentity.GetCurrent().IsGuest;
-            Console.WriteLine("  Guest user: " + isGuestUser.ToString());
+            CurrentUser currentUser = new CurrentUser
+            {
+                Username = userName,
+                AuthType = authenticationType,
+                IsGuest = isGuestUser.ToString()
+            };
+
+            return currentUser;
         }
 
-        public void GetDriveInfo()
+        public List<Drive> GetDriveInfo()
         {
-            Console.WriteLine("\nDisk Drive Info");
-
             DriveInfo[] allDrives = DriveInfo.GetDrives();
+
+            List<Drive> listOfDrives = new List<Drive>();
 
             foreach (var drive in allDrives)
             {
                 if (drive.IsReady)
                 {
-                    Console.WriteLine("Drive {0}", drive.Name);
-                    Console.WriteLine("  Volume label: {0}", drive.VolumeLabel);
-                    Console.WriteLine("  Format: {0}", drive.DriveFormat);
-                    Console.WriteLine("  Type: {0}", drive.DriveType);
-                    Console.WriteLine("  Total free space: {0}", Calculators.DiskSpaceBytesCalc(drive.TotalFreeSpace, false));
+                    Drive driveInfo = new Drive
+                    {
+                        Name = drive.Name,
+                        Label = drive.VolumeLabel,
+                        Format = drive.DriveFormat,
+                        Type = drive.DriveType.ToString(),
+                        FreeSpace = Calculators.DiskSpaceBytesCalc(drive.TotalFreeSpace, false)
+                    };
+
+                    listOfDrives.Add(driveInfo);
                 }
+
             }
+
+            return listOfDrives;
         }
 
-        public void GetRamInfo()
+        public List<Ram> GetRamInfo()
         {
-            Console.WriteLine("\nRAM Info");
-
             ObjectQuery query = new ObjectQuery("SELECT * FROM Win32_OperatingSystem");
             ManagementObjectSearcher searcher = new ManagementObjectSearcher(query);
             ManagementObjectCollection results = searcher.Get();
 
+            List<Ram> rams = new List<Ram>();
+
             foreach (ManagementObject result in results)
-            { 
-                var totalVisableMemory = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["TotalVisibleMemorySize"]),true);
-                var freePhysicalMemory = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["FreePhysicalMemory"]),true);
-                var totalVirtualMemorySize = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["TotalVirtualMemorySize"]),true);
-                var freeVirtualMemory = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["FreeVirtualMemory"]),true);
+            {
+                Ram ram = new Ram
+                {
+                    TotalVisable =
+                        Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["TotalVisibleMemorySize"]), true),
+                    FreeVisable = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["FreePhysicalMemory"]), true),
+                    TotalVirtual =
+                        Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["TotalVirtualMemorySize"]), true),
+                    freeVirtual = Calculators.DiskSpaceBytesCalc(Convert.ToDecimal(result["FreeVirtualMemory"]), true)
+                };
+                rams.Add(ram);
+            };
 
-
-                Console.WriteLine("  Total Visible Memory: {0}", totalVisableMemory);
-                Console.WriteLine("  Free Physical Memory: {0}", freePhysicalMemory);
-                Console.WriteLine("  Total Virtual Memory: {0}", totalVirtualMemorySize);
-                Console.WriteLine("  Free Virtual Memory: {0}", freeVirtualMemory);
-            }
+            return rams;
         }
-
     }
 }
